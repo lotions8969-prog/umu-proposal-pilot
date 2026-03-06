@@ -146,6 +146,59 @@ export function calculatePricing(input: PricingCalculationInput): PricingCalcula
   };
 }
 
+export type ConfigPricingMap = {
+  baseUnitPrice: Record<string, number>;
+  initialFee: Record<string, number>;
+  volumeDiscounts: { minIDs: number; rate: number }[];
+  contractDiscounts: { months: number; rate: number }[];
+  maxTotalDiscount: number;
+  options: Record<string, { pricePerID: number; flatPrice: number }>;
+};
+
+export function calculatePricingWithConfig(
+  planType: "premium" | "standard" | "light",
+  idCount: number,
+  contractMonths: number,
+  selectedOptions: string[],
+  configMap: ConfigPricingMap
+): PricingCalculationResult {
+  const baseUnitPrice = configMap.baseUnitPrice[planType] || PRICING_CONFIG.baseUnitPrice[planType];
+  const initialFee = configMap.initialFee[planType] || PRICING_CONFIG.initialFee[planType];
+
+  let volumeDiscountRate = 0;
+  for (const tier of configMap.volumeDiscounts) {
+    if (idCount >= tier.minIDs) { volumeDiscountRate = tier.rate; break; }
+  }
+
+  let contractDiscountRate = 0;
+  for (const tier of configMap.contractDiscounts) {
+    if (contractMonths >= tier.months) { contractDiscountRate = tier.rate; break; }
+  }
+
+  const totalDiscountRate = Math.min(volumeDiscountRate + contractDiscountRate, configMap.maxTotalDiscount);
+  const discountedUnitPrice = Math.round(baseUnitPrice * (1 - totalDiscountRate));
+  const monthlyBase = discountedUnitPrice * idCount;
+
+  let optionsMonthlyCost = 0;
+  let optionsFlatCost = 0;
+  for (const optId of selectedOptions) {
+    const opt = configMap.options[optId];
+    if (!opt) continue;
+    if (opt.pricePerID > 0) optionsMonthlyCost += opt.pricePerID * idCount;
+    if (opt.flatPrice > 0) optionsFlatCost += opt.flatPrice;
+  }
+
+  const monthlyTotal = monthlyBase + optionsMonthlyCost;
+  const annualTotal = monthlyTotal * 12 + initialFee + optionsFlatCost;
+  const totalContractValue = monthlyTotal * contractMonths + initialFee + optionsFlatCost;
+
+  return {
+    baseUnitPrice, discountedUnitPrice, volumeDiscountRate, contractDiscountRate,
+    totalDiscountRate, initialFee, monthlyBase, optionsMonthlyCost,
+    monthlyTotal, annualTotal, totalContractValue,
+  };
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("ja-JP", {
     style: "currency",

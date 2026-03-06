@@ -1,46 +1,58 @@
 "use client";
 
-import { useState } from "react";
-import { Package, Tag, Calculator, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Tag, Calculator, ChevronDown, ChevronUp } from "lucide-react";
 import type { PricingDetail } from "@/types";
+import type { UMUConfig } from "@/types/umuConfig";
 import {
   formatCurrency,
   PRICING_CONFIG,
   calculatePricing,
-  getDefaultOptions,
+  calculatePricingWithConfig,
 } from "@/lib/pricing";
+import { getConfigPricingMap } from "@/lib/umuConfig";
 
 interface PricingTableProps {
   pricing: PricingDetail;
   planColor: string;
+  umuConfig?: UMUConfig;
   onUpdate?: (updatedPricing: PricingDetail) => void;
 }
 
-export default function PricingTable({ pricing, planColor, onUpdate }: PricingTableProps) {
+export default function PricingTable({ pricing, planColor, umuConfig, onUpdate }: PricingTableProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [editableIDCount, setEditableIDCount] = useState(pricing.idCount);
   const [editableMonths, setEditableMonths] = useState(pricing.contractMonths);
   const [editableOptions, setEditableOptions] = useState<string[]>(pricing.selectedOptions);
+
+  const configMap = useMemo(
+    () => (umuConfig ? getConfigPricingMap(umuConfig) : null),
+    [umuConfig]
+  );
+
+  // Options to display: use config options if available, else fall back to hardcoded
+  const optionsList = useMemo(() => {
+    if (configMap && umuConfig && umuConfig.pricing.options.length > 0) {
+      return umuConfig.pricing.options.map((o) => ({
+        id: o.id,
+        name: o.name,
+        pricePerID: o.priceType === "per_id" ? o.price : 0,
+        flatPrice: o.priceType === "flat" ? o.price : 0,
+      }));
+    }
+    return Object.entries(PRICING_CONFIG.options).map(([id, opt]) => ({ id, ...opt }));
+  }, [configMap, umuConfig]);
 
   const textColor = { purple: "text-purple-400", blue: "text-blue-400", green: "text-green-400" }[planColor] || "text-blue-400";
   const borderColor = { purple: "border-purple-500/30", blue: "border-blue-500/30", green: "border-green-500/30" }[planColor] || "border-blue-500/30";
   const bgColor = { purple: "bg-purple-500/10", blue: "bg-blue-500/10", green: "bg-green-500/10" }[planColor] || "bg-blue-500/10";
 
   const recalculate = (idCount: number, months: number, options: string[]) => {
-    const result = calculatePricing({
-      planType: pricing.planType,
-      idCount,
-      contractMonths: months,
-      selectedOptions: options,
-    });
+    const result = configMap
+      ? calculatePricingWithConfig(pricing.planType, idCount, months, options, configMap)
+      : calculatePricing({ planType: pricing.planType, idCount, contractMonths: months, selectedOptions: options });
     if (onUpdate) {
-      onUpdate({
-        ...pricing,
-        idCount,
-        contractMonths: months,
-        selectedOptions: options,
-        ...result,
-      });
+      onUpdate({ ...pricing, idCount, contractMonths: months, selectedOptions: options, ...result });
     }
   };
 
@@ -62,13 +74,10 @@ export default function PricingTable({ pricing, planColor, onUpdate }: PricingTa
     recalculate(editableIDCount, editableMonths, newOptions);
   };
 
-  // Use editable values for display
-  const displayPricing = calculatePricing({
-    planType: pricing.planType,
-    idCount: editableIDCount,
-    contractMonths: editableMonths,
-    selectedOptions: editableOptions,
-  });
+  // Use editable values for display, with config prices if available
+  const displayPricing = configMap
+    ? calculatePricingWithConfig(pricing.planType, editableIDCount, editableMonths, editableOptions, configMap)
+    : calculatePricing({ planType: pricing.planType, idCount: editableIDCount, contractMonths: editableMonths, selectedOptions: editableOptions });
 
   return (
     <div className="space-y-3">
@@ -137,7 +146,8 @@ export default function PricingTable({ pricing, planColor, onUpdate }: PricingTa
       <div className="card-dark p-3">
         <p className="label-dark mb-2">オプション選択</p>
         <div className="grid grid-cols-1 gap-1">
-          {Object.entries(PRICING_CONFIG.options).map(([key, opt]) => {
+          {optionsList.map((opt) => {
+            const key = opt.id;
             const isSelected = editableOptions.includes(key);
             const price = opt.pricePerID > 0
               ? `+${formatCurrency(opt.pricePerID)}/ID`

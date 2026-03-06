@@ -5,34 +5,9 @@
 
 import type { HearingData } from "@/types";
 
-const COMPANY_PLACEHOLDERS: Record<string, string> = {};
-const PERSON_PLACEHOLDERS: Record<string, string> = {};
-let companyCounter = 0;
-let personCounter = 0;
-
-function getOrCreatePlaceholder(
-  value: string,
-  map: Record<string, string>,
-  prefix: string,
-  counter: { value: number }
-): string {
-  if (!map[value]) {
-    counter.value++;
-    map[value] = `${prefix}${counter.value}`;
-  }
-  return map[value];
-}
-
-const companyCounterRef = { value: companyCounter };
-const personCounterRef = { value: personCounter };
-
 export function anonymizeHearingData(data: HearingData): HearingData {
-  const companyAlias = getOrCreatePlaceholder(
-    data.companyName,
-    COMPANY_PLACEHOLDERS,
-    "A社",
-    companyCounterRef
-  );
+  // Use per-call local state to prevent cross-request data leaks in serverless environments
+  const companyAlias = "A社";
 
   // Replace company name in all text fields
   function replaceCompany(text: string): string {
@@ -69,16 +44,5 @@ export function anonymizeHearingData(data: HearingData): HearingData {
 }
 
 export function deanonymizeText(text: string, originalCompanyName: string): string {
-  // Replace all aliases back with original company name
-  for (const [original, alias] of Object.entries(COMPANY_PLACEHOLDERS)) {
-    text = text.replace(new RegExp(alias, "g"), original);
-  }
-  return text;
-}
-
-export function clearAnonymizationCache(): void {
-  Object.keys(COMPANY_PLACEHOLDERS).forEach((k) => delete COMPANY_PLACEHOLDERS[k]);
-  Object.keys(PERSON_PLACEHOLDERS).forEach((k) => delete PERSON_PLACEHOLDERS[k]);
-  companyCounterRef.value = 0;
-  personCounterRef.value = 0;
+  return text.replace(/A社/g, originalCompanyName);
 }

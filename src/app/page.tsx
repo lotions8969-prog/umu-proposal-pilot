@@ -266,7 +266,7 @@ export default function Home() {
                     </div>
                   </div>
                 )}
-                <ProposalDisplay proposal={proposal} />
+                <ProposalDisplay proposal={proposal} umuConfig={umuConfig ?? undefined} />
               </div>
             )}
           </div>

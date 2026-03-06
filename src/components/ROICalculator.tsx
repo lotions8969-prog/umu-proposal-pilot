@@ -78,7 +78,7 @@ export default function ROICalculator({ roi, planColor }: ROICalculatorProps) {
           <div className="flex-1 bg-slate-800 rounded-full h-2">
             <div
               className="h-2 rounded-full bg-gradient-to-r from-red-500 to-yellow-500 transition-all"
-              style={{ width: `${Math.min((roi.threeYearROIPercent / 3) * 0.5, 100)}%` }}
+              style={{ width: `${Math.min(roi.threeYearROIPercent / 3, 100)}%` }}
             />
           </div>
           <span className="text-xs text-slate-400 w-12">{Math.round(roi.threeYearROIPercent / 3)}%</span>
@@ -88,7 +88,7 @@ export default function ROICalculator({ roi, planColor }: ROICalculatorProps) {
           <div className="flex-1 bg-slate-800 rounded-full h-2">
             <div
               className="h-2 rounded-full bg-gradient-to-r from-yellow-500 to-green-500 transition-all"
-              style={{ width: `${Math.min((roi.threeYearROIPercent / 3) * 1.2, 100)}%` }}
+              style={{ width: `${Math.min((roi.threeYearROIPercent / 3) * 1.5, 100)}%` }}
             />
           </div>
           <span className="text-xs text-slate-400 w-12">{Math.round((roi.threeYearROIPercent / 3) * 1.5)}%</span>
@@ -98,7 +98,7 @@ export default function ROICalculator({ roi, planColor }: ROICalculatorProps) {
           <div className="flex-1 bg-slate-800 rounded-full h-2">
             <div
               className="h-2 rounded-full bg-gradient-to-r from-green-500 to-blue-500 transition-all"
-              style={{ width: `${Math.min(roi.threeYearROIPercent * 0.4, 100)}%` }}
+              style={{ width: `${Math.min(roi.threeYearROIPercent, 100)}%` }}
             />
           </div>
           <span className="text-xs text-slate-400 w-12">{roi.threeYearROIPercent}%</span>

@@ -16,6 +16,10 @@ export default function VersionHistory({ onRestore, currentId }: VersionHistoryP
   const [versions, setVersions] = useState<VersionEntry[]>([]);
 
   useEffect(() => {
+    setVersions(getVersions());
+  }, []);
+
+  useEffect(() => {
     if (isOpen) {
       setVersions(getVersions());
     }

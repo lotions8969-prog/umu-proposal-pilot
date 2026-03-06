@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Crown, Layers, Leaf, Quote, ChevronRight, Star, Calendar } from "lucide-react";
 import type { GeneratedProposal, ProposalPlan } from "@/types";
+import type { UMUConfig } from "@/types/umuConfig";
 import BeforeAfterVisualizer from "./BeforeAfterVisualizer";
 import ROICalculator from "./ROICalculator";
 import PricingTable from "./PricingTable";
@@ -10,6 +11,7 @@ import CompetitorTable from "./CompetitorTable";
 
 interface ProposalDisplayProps {
   proposal: GeneratedProposal;
+  umuConfig?: UMUConfig;
 }
 
 const PLAN_CONFIG = {
@@ -50,7 +52,7 @@ const PLAN_CONFIG = {
 
 type PlanType = "Premium" | "Standard" | "Light";
 
-export default function ProposalDisplay({ proposal }: ProposalDisplayProps) {
+export default function ProposalDisplay({ proposal, umuConfig }: ProposalDisplayProps) {
   const [activeTab, setActiveTab] = useState<PlanType>("Premium");
 
   const activePlan = proposal.plans.find((p) => p.planType === activeTab);
@@ -154,7 +156,7 @@ export default function ProposalDisplay({ proposal }: ProposalDisplayProps) {
 
         {/* Pricing */}
         <div className="card-dark p-4">
-          <PricingTable pricing={activePlan.pricing} planColor={config.color} />
+          <PricingTable pricing={activePlan.pricing} planColor={config.color} umuConfig={umuConfig} />
         </div>
 
         {/* Implementation Timeline */}

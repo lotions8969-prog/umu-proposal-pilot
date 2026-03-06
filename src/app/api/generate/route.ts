@@ -174,6 +174,10 @@ ${JSON.stringify({ plans: currentProposal.plans.map((p) => ({ ...p, pricing: und
     const parsed = JSON.parse(jsonMatch[1]);
     const plans: ProposalPlan[] = parsed.plans;
 
+    if (!Array.isArray(plans) || plans.length === 0) {
+      return NextResponse.json({ error: "提案書の構造が正しくありません。再度お試しください。" }, { status: 500 });
+    }
+
     // Attach server-calculated pricing using config-defined prices (NOT LLM-calculated)
     const planTypeMap: Record<string, "premium" | "standard" | "light"> = {
       Premium: "premium",
