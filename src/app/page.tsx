@@ -1,18 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Zap, AlertCircle } from "lucide-react";
 import HearingForm from "@/components/HearingForm";
 import ProposalDisplay from "@/components/ProposalDisplay";
 import MagicCommandBar from "@/components/MagicCommandBar";
 import VersionHistory from "@/components/VersionHistory";
+import UMUSettingsPanel from "@/components/UMUSettingsPanel";
 import { saveVersion } from "@/lib/versions";
+import { loadUMUConfig } from "@/lib/umuConfig";
 import type { HearingData, GeneratedProposal } from "@/types";
+import type { UMUConfig } from "@/types/umuConfig";
 
 export default function Home() {
   const [proposal, setProposal] = useState<GeneratedProposal | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [umuConfig, setUmuConfig] = useState<UMUConfig | null>(null);
+
+  // Load UMU config on mount (client-side only)
+  useEffect(() => {
+    setUmuConfig(loadUMUConfig());
+  }, []);
 
   const generate = async (hearingData: HearingData, command?: string) => {
     setIsLoading(true);
@@ -26,6 +35,7 @@ export default function Home() {
           hearingData,
           command,
           currentProposal: command && proposal ? { plans: proposal.plans } : undefined,
+          umuConfig, // Pass current UMU config to API
         }),
       });
 
@@ -39,25 +49,25 @@ export default function Home() {
       const newProposal: GeneratedProposal = data.proposal;
       setProposal(newProposal);
       saveVersion(newProposal, command);
-    } catch (err) {
+    } catch {
       setError("ネットワークエラーが発生しました");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleGenerate = (hearingData: HearingData) => {
-    generate(hearingData);
-  };
+  const handleGenerate = (hearingData: HearingData) => generate(hearingData);
 
   const handleCommand = (command: string) => {
     if (!proposal) return;
     generate(proposal.hearingData, command);
   };
 
-  const handleRestore = (restoredProposal: GeneratedProposal) => {
-    setProposal(restoredProposal);
-  };
+  const handleRestore = (restoredProposal: GeneratedProposal) => setProposal(restoredProposal);
+
+  const handleConfigChange = (config: UMUConfig) => setUmuConfig(config);
+
+  const productName = umuConfig?.product?.name ?? "UMU Proposal Pilot";
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-[#0A0E1A]">
@@ -69,18 +79,33 @@ export default function Home() {
           </div>
           <div>
             <h1 className="text-sm font-black text-white tracking-tight">UMU Proposal Pilot</h1>
-            <p className="text-xs text-slate-500">AI提案書生成システム</p>
+            <p className="text-xs text-slate-500">
+              {umuConfig
+                ? `${productName} の提案書を生成`
+                : "AI提案書生成システム"}
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* Config status badge */}
+          {umuConfig && (
+            <div className="hidden sm:flex items-center gap-3 mr-2 text-xs text-slate-600 border-r border-slate-800 pr-3">
+              <span>強み {umuConfig.strengths.length}件</span>
+              <span>事例 {umuConfig.successCases.length}件</span>
+              <span>競合比較 {umuConfig.competitors.length}項目</span>
+            </div>
+          )}
+
           {proposal && (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-green-500/10 border border-green-500/20">
               <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
               <span className="text-xs text-green-400">生成完了</span>
             </div>
           )}
+
           <VersionHistory onRestore={handleRestore} currentId={proposal?.id} />
+          <UMUSettingsPanel onConfigChange={handleConfigChange} />
         </div>
       </header>
 
@@ -122,8 +147,28 @@ export default function Home() {
                 </h2>
                 <p className="text-sm text-slate-500 max-w-md leading-relaxed mb-6">
                   左のフォームに顧客情報を入力し「3プラン同時生成」をクリック。
-                  AIが Premium / Standard / Light の提案書を自動作成します。
+                  <br />
+                  右上の「UMU情報設定」で製品情報・価格・強みを編集できます。
                 </p>
+
+                {/* Config summary */}
+                {umuConfig && (
+                  <div className="mb-6 grid grid-cols-3 gap-3 max-w-sm text-xs">
+                    <div className="card-dark p-3 text-center">
+                      <p className="text-2xl font-black text-yellow-400">{umuConfig.strengths.length}</p>
+                      <p className="text-slate-500 mt-1">強み登録済み</p>
+                    </div>
+                    <div className="card-dark p-3 text-center">
+                      <p className="text-2xl font-black text-purple-400">{umuConfig.successCases.length}</p>
+                      <p className="text-slate-500 mt-1">成功事例登録済み</p>
+                    </div>
+                    <div className="card-dark p-3 text-center">
+                      <p className="text-2xl font-black text-red-400">{umuConfig.competitors.length}</p>
+                      <p className="text-slate-500 mt-1">競合比較項目</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-3 gap-4 max-w-sm">
                   {[
                     { icon: "👑", label: "Premium", desc: "全機能+専任CS" },
@@ -154,9 +199,9 @@ export default function Home() {
                   30〜60秒お待ちください。
                 </p>
                 <div className="mt-6 space-y-2 text-xs text-slate-600">
-                  <p>📊 成功事例DBを参照中...</p>
-                  <p>💡 課題解決ロジックを構築中...</p>
-                  <p>💰 ROI試算を計算中...</p>
+                  <p>📊 登録済み成功事例DB（{umuConfig?.successCases.length ?? 0}件）を参照中...</p>
+                  <p>💡 製品強み（{umuConfig?.strengths.length ?? 0}件）をもとに課題解決ロジックを構築中...</p>
+                  <p>💰 設定済み価格マスターでROI試算を計算中...</p>
                 </div>
               </div>
             )}

@@ -1,136 +1,123 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { anonymizeHearingData } from "@/lib/anonymizer";
-import { getSuccessCaseSummary } from "@/lib/successDB";
-import { UMU_KILLER_PHRASES, UMU_ADVANTAGES, PLAN_PHRASES } from "@/lib/copywriting";
-import {
-  calculatePricing,
-  getDefaultIDCount,
-  getDefaultContractMonths,
-  getDefaultOptions,
-} from "@/lib/pricing";
+import { buildSystemPromptFromConfig, getConfigPricingMap, DEFAULT_UMU_CONFIG } from "@/lib/umuConfig";
 import type { HearingData, ProposalPlan, PricingDetail } from "@/types";
+import type { UMUConfig } from "@/types/umuConfig";
 import { v4 as uuidv4 } from "uuid";
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-function buildSystemPrompt(): string {
-  return `あなたはUMU（ユーム）という学習プラットフォームの提案書作成の専門家です。
-UMUの営業として、顧客のヒアリング情報から説得力のある提案書を作成してください。
+/** Calculate pricing using config-defined prices (no LLM math) */
+function calculatePricingFromConfig(
+  planType: "premium" | "standard" | "light",
+  targetLearners: number,
+  configMap: ReturnType<typeof getConfigPricingMap>
+): PricingDetail {
+  const multipliers = { premium: 1.2, standard: 1.0, light: 0.6 };
+  const contractMonthsDefault = { premium: 36, standard: 24, light: 12 };
 
-## UMUについて
-UMUは「学習の科学」に基づいた法人向けeラーニング・人材育成プラットフォームです。
-- AIによるリアルタイムフィードバック機能（音声・表情・内容分析）
-- ゲーミフィケーションで学習継続率87%
-- スマホ1台で本格動画教材を15分で作成
-- 世界150カ国・700万人以上が利用
-- フォーチュン500企業多数が導入
+  const idCount = Math.round(targetLearners * multipliers[planType]);
+  const contractMonths = contractMonthsDefault[planType];
+  const selectedOptions = configMap.defaultOptions[planType];
 
-## 成功事例DB
-${getSuccessCaseSummary()}
+  const baseUnitPrice = configMap.baseUnitPrice[planType];
+  const initialFee = configMap.initialFee[planType];
 
-## UMUのキラーフレーズ（適切に使用すること）
-開口フレーズ: ${UMU_KILLER_PHRASES.opening.join(" / ")}
-変革フレーズ: ${UMU_KILLER_PHRASES.transformation.join(" / ")}
-ROIフレーズ: ${UMU_KILLER_PHRASES.roi.join(" / ")}
-緊急性フレーズ: ${UMU_KILLER_PHRASES.urgency.join(" / ")}
-
-## UMUの競合優位性
-${UMU_ADVANTAGES.map((a) => `${a.category}: UMU「${a.umu}」vs 競合「${a.competitor}」`).join("\n")}
-
-## 出力形式
-必ず以下のJSON形式で出力してください。JSONのみを出力し、説明文は不要です。
-
-\`\`\`json
-{
-  "plans": [
-    {
-      "planType": "Premium",
-      "title": "提案タイトル（顧客の課題と解決を含む30文字程度）",
-      "tagline": "サブタイトル（インパクトある20文字程度）",
-      "executiveSummary": "経営層向け要約（150文字程度）",
-      "killerPhrase": "この提案のキャッチコピー（感情に訴える30文字程度）",
-      "before": {
-        "description": "現状の課題の説明（100文字）",
-        "metrics": [
-          {"label": "現状指標名", "value": "数値"},
-          {"label": "現状指標名2", "value": "数値"}
-        ],
-        "painPoints": ["痛み1", "痛み2", "痛み3"]
-      },
-      "after": {
-        "description": "UMU導入後の理想状態（100文字）",
-        "metrics": [
-          {"label": "改善後指標名", "value": "数値"},
-          {"label": "改善後指標名2", "value": "数値"}
-        ],
-        "achievements": ["成果1", "成果2", "成果3"]
-      },
-      "keyFeatures": ["機能1", "機能2", "機能3", "機能4", "機能5"],
-      "implementationTimeline": [
-        {"month": 1, "milestone": "マイルストーン名", "detail": "詳細"},
-        {"month": 2, "milestone": "マイルストーン名", "detail": "詳細"},
-        {"month": 3, "milestone": "マイルストーン名", "detail": "詳細"},
-        {"month": 6, "milestone": "マイルストーン名", "detail": "詳細"},
-        {"month": 12, "milestone": "マイルストーン名", "detail": "詳細"}
-      ],
-      "competitorComparison": [
-        {"feature": "比較項目", "umu": "UMUの強み", "competitor": "競合の弱点", "umuAdvantage": true},
-        {"feature": "比較項目2", "umu": "UMUの強み", "competitor": "競合の弱点", "umuAdvantage": true}
-      ],
-      "successStory": {
-        "company": "類似企業名（仮名でもOK）",
-        "industry": "業界",
-        "challenge": "課題",
-        "result": "成果（数値を含む）",
-        "quote": "担当者のコメント（感情的な言葉）"
-      },
-      "roiAnalysis": {
-        "currentAnnualCost": 現状の年間教育コスト（数値・円）,
-        "projectedSavings": 年間削減額（数値・円）,
-        "productivityGainPercent": 生産性向上率（数値・%）,
-        "paybackMonths": 投資回収月数（数値）,
-        "threeYearROIPercent": 3年間ROI（数値・%）,
-        "roiNarrative": "ROIの説明文（80文字）"
-      }
+  // Volume discount
+  let volumeDiscountRate = 0;
+  for (const tier of configMap.volumeDiscounts) {
+    if (idCount >= tier.minIDs) {
+      volumeDiscountRate = tier.rate;
+      break;
     }
-  ]
-}
-\`\`\`
+  }
 
-Premiumは最上位プラン（AI機能フル活用・専任CS付き）、Standardは中位（コスパ最優）、Lightは入門プラン（小さく始める）として、3プランすべてを生成してください。
-各プランの提案内容はリアルで説得力のある数値を含めてください。`;
+  // Contract discount
+  let contractDiscountRate = 0;
+  for (const tier of configMap.contractDiscounts) {
+    if (contractMonths >= tier.months) {
+      contractDiscountRate = tier.rate;
+      break;
+    }
+  }
+
+  const totalDiscountRate = Math.min(
+    volumeDiscountRate + contractDiscountRate,
+    configMap.maxTotalDiscount
+  );
+  const discountedUnitPrice = Math.round(baseUnitPrice * (1 - totalDiscountRate));
+
+  // Monthly costs
+  const monthlyBase = discountedUnitPrice * idCount;
+  let optionsMonthlyCost = 0;
+  let optionsFlatCost = 0;
+
+  for (const optId of selectedOptions) {
+    const opt = configMap.options[optId];
+    if (!opt) continue;
+    if (opt.pricePerID > 0) optionsMonthlyCost += opt.pricePerID * idCount;
+    if (opt.flatPrice > 0) optionsFlatCost += opt.flatPrice;
+  }
+
+  const monthlyTotal = monthlyBase + optionsMonthlyCost;
+  const annualTotal = monthlyTotal * 12 + initialFee + optionsFlatCost;
+  const totalContractValue = monthlyTotal * contractMonths + initialFee + optionsFlatCost;
+
+  return {
+    planType,
+    idCount,
+    contractMonths,
+    selectedOptions,
+    baseUnitPrice,
+    discountedUnitPrice,
+    volumeDiscountRate,
+    contractDiscountRate,
+    totalDiscountRate,
+    initialFee,
+    monthlyBase,
+    optionsMonthlyCost,
+    monthlyTotal,
+    annualTotal,
+    totalContractValue,
+  };
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { hearingData, command, currentProposal } = body as {
+    const { hearingData, command, currentProposal, umuConfig } = body as {
       hearingData: HearingData;
       command?: string;
       currentProposal?: { plans: ProposalPlan[] };
+      umuConfig?: UMUConfig;
     };
 
     if (!hearingData) {
       return NextResponse.json({ error: "ヒアリングデータが必要です" }, { status: 400 });
     }
 
+    // Use provided config or fall back to default
+    const config = umuConfig ?? DEFAULT_UMU_CONFIG;
+
     // Anonymize sensitive data before sending to LLM
     const anonymizedData = anonymizeHearingData(hearingData);
+
+    // Build system prompt from dynamic config
+    const systemPrompt = buildSystemPromptFromConfig(config);
 
     let userMessage = "";
 
     if (command && currentProposal) {
-      // Magic Command: modify existing proposal
       userMessage = `以下の提案書を次の指示に従って修正してください。
 
 ## 修正指示
 ${command}
 
 ## 現在の提案書（JSON）
-${JSON.stringify(currentProposal, null, 2)}
+${JSON.stringify({ plans: currentProposal.plans.map((p) => ({ ...p, pricing: undefined })) }, null, 2)}
 
 ## ヒアリング情報
 会社名: ${anonymizedData.companyName}
@@ -142,8 +129,7 @@ ${JSON.stringify(currentProposal, null, 2)}
 
 修正指示を反映した、同じJSON形式で3プラン分を返してください。`;
     } else {
-      // Initial generation
-      userMessage = `以下のヒアリング情報をもとに、UMUの提案書を作成してください。
+      userMessage = `以下のヒアリング情報をもとに、${config.product.name}の提案書を作成してください。
 
 ## ヒアリング情報
 会社名: ${anonymizedData.companyName}
@@ -156,17 +142,18 @@ ${JSON.stringify(currentProposal, null, 2)}
 導入希望時期: ${anonymizedData.timeline}
 現在使用中/検討中のツール: ${anonymizedData.competitorProducts || "なし"}
 キーステークホルダー: ${anonymizedData.keyStakeholders}
-成功の定義: ${anonymizedData.successMetrics}
+成功の定義・KPI: ${anonymizedData.successMetrics}
 補足: ${anonymizedData.additionalNotes || "なし"}
 
 この情報をもとに、Premium・Standard・Lightの3プランの提案書を作成してください。
-顧客の業界・課題に特化した具体的な数値を使用してください。`;
+顧客の業界・課題・予算感に特化した具体的な数値を使用してください。
+登録されている成功事例の中から最も類似した業界・課題のものを選んで参照してください。`;
     }
 
     const response = await client.messages.create({
       model: "claude-opus-4-6",
       max_tokens: 8000,
-      system: buildSystemPrompt(),
+      system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
     });
 
@@ -176,7 +163,8 @@ ${JSON.stringify(currentProposal, null, 2)}
     }
 
     // Extract JSON from response
-    const jsonMatch = content.text.match(/```json\n([\s\S]*?)\n```/) ||
+    const jsonMatch =
+      content.text.match(/```json\n([\s\S]*?)\n```/) ||
       content.text.match(/({[\s\S]*})/);
 
     if (!jsonMatch) {
@@ -186,34 +174,22 @@ ${JSON.stringify(currentProposal, null, 2)}
     const parsed = JSON.parse(jsonMatch[1]);
     const plans: ProposalPlan[] = parsed.plans;
 
-    // Attach server-calculated pricing to each plan (NOT LLM-calculated)
+    // Attach server-calculated pricing using config-defined prices (NOT LLM-calculated)
     const planTypeMap: Record<string, "premium" | "standard" | "light"> = {
       Premium: "premium",
       Standard: "standard",
       Light: "light",
     };
 
+    const configPricingMap = getConfigPricingMap(config);
+
     const enrichedPlans: ProposalPlan[] = plans.map((plan) => {
-      const pt = planTypeMap[plan.planType] || "standard";
-      const idCount = getDefaultIDCount(pt, hearingData.targetLearners || 100);
-      const contractMonths = getDefaultContractMonths(pt);
-      const selectedOptions = getDefaultOptions(pt);
-
-      const pricingResult = calculatePricing({
-        planType: pt,
-        idCount,
-        contractMonths,
-        selectedOptions,
-      });
-
-      const pricing: PricingDetail = {
-        planType: pt,
-        idCount,
-        contractMonths,
-        selectedOptions,
-        ...pricingResult,
-      };
-
+      const pt = planTypeMap[plan.planType] ?? "standard";
+      const pricing = calculatePricingFromConfig(
+        pt,
+        hearingData.targetLearners || 100,
+        configPricingMap
+      );
       return { ...plan, pricing };
     });
 
