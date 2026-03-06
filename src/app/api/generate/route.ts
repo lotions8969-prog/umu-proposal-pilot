@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { anonymizeHearingData } from "@/lib/anonymizer";
-import { buildSystemPromptFromConfig, getConfigPricingMap, DEFAULT_UMU_CONFIG } from "@/lib/umuConfig";
+import { buildSystemPromptFromConfig, getConfigPricingMap, EMPTY_UMU_CONFIG } from "@/lib/umuConfig";
 import type { HearingData, ProposalPlan, PricingDetail } from "@/types";
 import type { UMUConfig } from "@/types/umuConfig";
 import { v4 as uuidv4 } from "uuid";
@@ -99,8 +99,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "ヒアリングデータが必要です" }, { status: 400 });
     }
 
-    // Use provided config or fall back to default
-    const config = umuConfig ?? DEFAULT_UMU_CONFIG;
+    // Use provided config or fall back to empty config
+    const config = umuConfig ?? EMPTY_UMU_CONFIG;
 
     // Anonymize sensitive data before sending to LLM
     const anonymizedData = anonymizeHearingData(hearingData);

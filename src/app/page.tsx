@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Zap, AlertCircle } from "lucide-react";
+import { Zap, AlertCircle, Settings, ArrowRight, Upload, BookOpen, DollarSign } from "lucide-react";
 import HearingForm from "@/components/HearingForm";
 import ProposalDisplay from "@/components/ProposalDisplay";
 import MagicCommandBar from "@/components/MagicCommandBar";
 import VersionHistory from "@/components/VersionHistory";
 import UMUSettingsPanel from "@/components/UMUSettingsPanel";
 import { saveVersion } from "@/lib/versions";
-import { loadUMUConfig } from "@/lib/umuConfig";
+import { loadUMUConfig, isUserConfigured } from "@/lib/umuConfig";
 import type { HearingData, GeneratedProposal } from "@/types";
 import type { UMUConfig } from "@/types/umuConfig";
 
@@ -17,16 +17,18 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [umuConfig, setUmuConfig] = useState<UMUConfig | null>(null);
+  const [configured, setConfigured] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // Load UMU config on mount (client-side only)
   useEffect(() => {
-    setUmuConfig(loadUMUConfig());
+    const config = loadUMUConfig();
+    setUmuConfig(config);
+    setConfigured(isUserConfigured());
   }, []);
 
   const generate = async (hearingData: HearingData, command?: string) => {
     setIsLoading(true);
     setError(null);
-
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -35,17 +37,11 @@ export default function Home() {
           hearingData,
           command,
           currentProposal: command && proposal ? { plans: proposal.plans } : undefined,
-          umuConfig, // Pass current UMU config to API
+          umuConfig,
         }),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "生成に失敗しました");
-        return;
-      }
-
+      if (!res.ok) { setError(data.error || "生成に失敗しました"); return; }
       const newProposal: GeneratedProposal = data.proposal;
       setProposal(newProposal);
       saveVersion(newProposal, command);
@@ -57,17 +53,18 @@ export default function Home() {
   };
 
   const handleGenerate = (hearingData: HearingData) => generate(hearingData);
-
-  const handleCommand = (command: string) => {
-    if (!proposal) return;
-    generate(proposal.hearingData, command);
+  const handleCommand = (command: string) => { if (!proposal) return; generate(proposal.hearingData, command); };
+  const handleRestore = (p: GeneratedProposal) => setProposal(p);
+  const handleConfigChange = (config: UMUConfig) => {
+    setUmuConfig(config);
+    setConfigured(true);
   };
 
-  const handleRestore = (restoredProposal: GeneratedProposal) => setProposal(restoredProposal);
-
-  const handleConfigChange = (config: UMUConfig) => setUmuConfig(config);
-
-  const productName = umuConfig?.product?.name ?? "UMU Proposal Pilot";
+  // Accurate counts from actual config (0 when not set)
+  const strengthsCount = umuConfig?.strengths.length ?? 0;
+  const casesCount = umuConfig?.successCases.length ?? 0;
+  const competitorsCount = umuConfig?.competitors.length ?? 0;
+  const hasPricing = (umuConfig?.pricing.plans.premium.unitPrice ?? 0) > 0;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-[#0A0E1A]">
@@ -79,21 +76,24 @@ export default function Home() {
           </div>
           <div>
             <h1 className="text-sm font-black text-white tracking-tight">UMU Proposal Pilot</h1>
-            <p className="text-xs text-slate-500">
-              {umuConfig
-                ? `${productName} の提案書を生成`
-                : "AI提案書生成システム"}
-            </p>
+            <p className="text-xs text-slate-500">AI提案書生成システム</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Config status badge */}
-          {umuConfig && (
-            <div className="hidden sm:flex items-center gap-3 mr-2 text-xs text-slate-600 border-r border-slate-800 pr-3">
-              <span>強み {umuConfig.strengths.length}件</span>
-              <span>事例 {umuConfig.successCases.length}件</span>
-              <span>競合比較 {umuConfig.competitors.length}項目</span>
+          {/* Accurate status — only shows when actually configured */}
+          {configured && (
+            <div className="hidden sm:flex items-center gap-3 mr-2 text-xs border-r border-slate-800 pr-3">
+              <span className={strengthsCount > 0 ? "text-yellow-400" : "text-slate-700"}>
+                強み {strengthsCount}件
+              </span>
+              <span className={casesCount > 0 ? "text-purple-400" : "text-slate-700"}>
+                事例 {casesCount}件
+              </span>
+              <span className={competitorsCount > 0 ? "text-red-400" : "text-slate-700"}>
+                競合 {competitorsCount}件
+              </span>
+              {hasPricing && <span className="text-green-400">価格設定済み</span>}
             </div>
           )}
 
@@ -105,7 +105,19 @@ export default function Home() {
           )}
 
           <VersionHistory onRestore={handleRestore} currentId={proposal?.id} />
-          <UMUSettingsPanel onConfigChange={handleConfigChange} />
+
+          {/* Settings button */}
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+              configured
+                ? "bg-slate-800/50 border-slate-700 hover:border-slate-500 text-slate-300"
+                : "bg-blue-600 border-blue-500 text-white hover:bg-blue-500 animate-pulse"
+            }`}
+          >
+            <Settings size={13} />
+            {configured ? "製品情報を編集" : "製品情報を設定する"}
+          </button>
         </div>
       </header>
 
@@ -117,22 +129,58 @@ export default function Home() {
             <p className="text-xs font-semibold text-red-300">エラーが発生しました</p>
             <p className="text-xs text-red-400/80 mt-0.5">{error}</p>
             {error.includes("APIキー") && (
-              <p className="text-xs text-slate-500 mt-1">
-                .env.local に ANTHROPIC_API_KEY を設定してください
-              </p>
+              <p className="text-xs text-slate-500 mt-1">.env.local に ANTHROPIC_API_KEY を設定してください</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Setup banner — shown when not yet configured */}
+      {!configured && (
+        <div className="flex-shrink-0 mx-4 mt-3 p-4 rounded-xl bg-gradient-to-r from-blue-950/60 to-purple-950/60 border border-blue-800/50">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
+              <Settings size={18} className="text-blue-400" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-white mb-1">まず最初に：UMUの製品情報を登録してください</p>
+              <p className="text-xs text-slate-400 mb-3">
+                価格表・製品資料・成功事例などを登録することで、AIが顧客に合わせた高精度な提案書を生成できます。
+                資料をコピー＆ペーストするだけでAIが自動で読み取ります。
+              </p>
+              <div className="flex flex-wrap items-center gap-3 mb-3">
+                {[
+                  { icon: Upload, text: "資料を貼り付けてAI自動抽出" },
+                  { icon: DollarSign, text: "価格マスターを登録" },
+                  { icon: BookOpen, text: "成功事例を追加" },
+                ].map(({ icon: Icon, text }, i) => (
+                  <div key={i} className="flex items-center gap-1.5 text-xs text-slate-400">
+                    <Icon size={12} className="text-blue-400" />
+                    {text}
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition-all shadow-lg"
+              >
+                <Settings size={14} />
+                製品情報を設定する（まずここから）
+                <ArrowRight size={14} />
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left panel - Hearing Form */}
+        {/* Left panel */}
         <div className="w-80 flex-shrink-0 border-r border-slate-800/60 p-4 overflow-hidden flex flex-col">
           <HearingForm onGenerate={handleGenerate} isLoading={isLoading} />
         </div>
 
-        {/* Right panel - Proposal Display */}
+        {/* Right panel */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-hidden p-4">
             {!proposal && !isLoading && (
@@ -146,30 +194,34 @@ export default function Home() {
                   <span className="gradient-text">3プランを瞬時に生成</span>
                 </h2>
                 <p className="text-sm text-slate-500 max-w-md leading-relaxed mb-6">
-                  左のフォームに顧客情報を入力し「3プラン同時生成」をクリック。
-                  <br />
-                  右上の「UMU情報設定」で製品情報・価格・強みを編集できます。
+                  左のフォームに顧客情報を入力して「3プラン同時生成」をクリック。
+                  {!configured && <span className="text-blue-400"> まず右上の「製品情報を設定する」から製品情報を登録すると、より精度の高い提案書が生成されます。</span>}
                 </p>
 
-                {/* Config summary */}
-                {umuConfig && (
-                  <div className="mb-6 grid grid-cols-3 gap-3 max-w-sm text-xs">
-                    <div className="card-dark p-3 text-center">
-                      <p className="text-2xl font-black text-yellow-400">{umuConfig.strengths.length}</p>
-                      <p className="text-slate-500 mt-1">強み登録済み</p>
+                {/* Config status cards */}
+                <div className="grid grid-cols-4 gap-3 max-w-lg mb-6">
+                  {[
+                    { label: "価格", value: hasPricing ? "設定済" : "未設定", color: hasPricing ? "text-green-400" : "text-slate-600", icon: DollarSign },
+                    { label: "強み", value: `${strengthsCount}件`, color: strengthsCount > 0 ? "text-yellow-400" : "text-slate-600", icon: Zap },
+                    { label: "成功事例", value: `${casesCount}件`, color: casesCount > 0 ? "text-purple-400" : "text-slate-600", icon: BookOpen },
+                    { label: "競合比較", value: `${competitorsCount}件`, color: competitorsCount > 0 ? "text-red-400" : "text-slate-600", icon: Settings },
+                  ].map(({ label, value, color, icon: Icon }) => (
+                    <div key={label} className="card-dark p-3 text-center cursor-pointer hover:border-slate-600 transition-all" onClick={() => setSettingsOpen(true)}>
+                      <Icon size={14} className={`mx-auto mb-1 ${color}`} />
+                      <p className={`text-sm font-bold ${color}`}>{value}</p>
+                      <p className="text-xs text-slate-600 mt-0.5">{label}</p>
                     </div>
-                    <div className="card-dark p-3 text-center">
-                      <p className="text-2xl font-black text-purple-400">{umuConfig.successCases.length}</p>
-                      <p className="text-slate-500 mt-1">成功事例登録済み</p>
-                    </div>
-                    <div className="card-dark p-3 text-center">
-                      <p className="text-2xl font-black text-red-400">{umuConfig.competitors.length}</p>
-                      <p className="text-slate-500 mt-1">競合比較項目</p>
-                    </div>
-                  </div>
+                  ))}
+                </div>
+
+                {!configured && (
+                  <button onClick={() => setSettingsOpen(true)}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-300 text-sm font-semibold hover:bg-blue-600/30 transition-all mb-4">
+                    <Settings size={14} />製品情報を登録する（推奨）<ArrowRight size={14} />
+                  </button>
                 )}
 
-                <div className="grid grid-cols-3 gap-4 max-w-sm">
+                <div className="grid grid-cols-3 gap-4 max-w-sm mt-2">
                   {[
                     { icon: "👑", label: "Premium", desc: "全機能+専任CS" },
                     { icon: "⚡", label: "Standard", desc: "コスパ最優先" },
@@ -194,14 +246,12 @@ export default function Home() {
                   </div>
                 </div>
                 <h3 className="text-lg font-bold text-slate-200 mb-2">AI生成中...</h3>
-                <p className="text-sm text-slate-500">
-                  3プランの提案書を同時に生成しています。<br />
-                  30〜60秒お待ちください。
-                </p>
+                <p className="text-sm text-slate-500">3プランの提案書を同時に生成しています。<br />30〜60秒お待ちください。</p>
                 <div className="mt-6 space-y-2 text-xs text-slate-600">
-                  <p>📊 登録済み成功事例DB（{umuConfig?.successCases.length ?? 0}件）を参照中...</p>
-                  <p>💡 製品強み（{umuConfig?.strengths.length ?? 0}件）をもとに課題解決ロジックを構築中...</p>
-                  <p>💰 設定済み価格マスターでROI試算を計算中...</p>
+                  {strengthsCount > 0 && <p>💡 登録済み強み（{strengthsCount}件）をもとに課題解決ロジックを構築中...</p>}
+                  {casesCount > 0 && <p>📊 成功事例DB（{casesCount}件）から類似事例を参照中...</p>}
+                  {hasPricing && <p>💰 登録済み価格マスターでROI試算を計算中...</p>}
+                  {!configured && <p>⚡ 製品情報未設定のため汎用情報で生成中...</p>}
                 </div>
               </div>
             )}
@@ -221,14 +271,16 @@ export default function Home() {
             )}
           </div>
 
-          {/* Magic Command Bar */}
-          <MagicCommandBar
-            onCommand={handleCommand}
-            isLoading={isLoading}
-            disabled={!proposal}
-          />
+          <MagicCommandBar onCommand={handleCommand} isLoading={isLoading} disabled={!proposal} />
         </div>
       </div>
+
+      {/* Settings Panel */}
+      <UMUSettingsPanel
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onConfigChange={handleConfigChange}
+      />
     </div>
   );
 }
