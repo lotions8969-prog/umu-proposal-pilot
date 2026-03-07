@@ -75,7 +75,7 @@ type ImageData = { base64: string; mediaType: string; preview: string; name: str
 type ExtractSummary = { product: boolean; pricingFilled: boolean; strengthsCount: number; casesCount: number; competitorsCount: number; phrasesCount: number };
 type InputMode = "file" | "text";
 
-function UploadTab({ config, onMerge }: { config: UMUConfig; onMerge: (extracted: Partial<UMUConfig>) => void }) {
+function UploadTab({ config, onMerge, onNavigate }: { config: UMUConfig; onMerge: (extracted: Partial<UMUConfig>) => void; onNavigate: (tab: TabId) => void }) {
   const [inputMode, setInputMode] = useState<InputMode>("file");
   const [text, setText] = useState("");
   const [imageData, setImageData] = useState<ImageData | null>(null);
@@ -353,12 +353,12 @@ function UploadTab({ config, onMerge }: { config: UMUConfig; onMerge: (extracted
         )}
 
         {result && (
-          <div className="mt-3 p-4 rounded-xl bg-green-950/30 border border-green-800/50">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="mt-3 p-4 rounded-xl bg-green-950/30 border border-green-800/50 space-y-3">
+            <div className="flex items-center gap-2">
               <CheckCircle2 size={14} className="text-green-400" />
-              <span className="text-sm font-bold text-green-300">抽出完了！以下の情報が設定に反映されました</span>
+              <span className="text-sm font-bold text-green-300">抽出完了！以下の情報が取り込まれました</span>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-2 gap-1.5 text-xs">
               {result.summary.product && <div className="flex items-center gap-1.5 text-green-300"><Check size={11} />製品情報</div>}
               {result.summary.pricingFilled && <div className="flex items-center gap-1.5 text-green-300"><Check size={11} />価格情報</div>}
               {result.summary.strengthsCount > 0 && <div className="flex items-center gap-1.5 text-green-300"><Check size={11} />強み {result.summary.strengthsCount}件</div>}
@@ -366,7 +366,41 @@ function UploadTab({ config, onMerge }: { config: UMUConfig; onMerge: (extracted
               {result.summary.competitorsCount > 0 && <div className="flex items-center gap-1.5 text-green-300"><Check size={11} />競合比較 {result.summary.competitorsCount}件</div>}
               {result.summary.phrasesCount > 0 && <div className="flex items-center gap-1.5 text-green-300"><Check size={11} />フレーズ {result.summary.phrasesCount}個</div>}
             </div>
-            <p className="text-xs text-slate-500 mt-2">各タブで内容を確認・編集してから「保存する」を押してください。</p>
+            <div className="border-t border-green-900/50 pt-3">
+              <p className="text-xs text-slate-400 mb-2">内容を確認・編集するには各タブへ：</p>
+              <div className="flex flex-wrap gap-2">
+                {result.summary.product && (
+                  <button onClick={() => onNavigate("product")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-medium hover:bg-cyan-500/30 transition-colors border border-cyan-500/30">
+                    <Building2 size={11} />製品情報
+                  </button>
+                )}
+                {result.summary.pricingFilled && (
+                  <button onClick={() => onNavigate("pricing")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-500/20 text-green-300 text-xs font-medium hover:bg-green-500/30 transition-colors border border-green-500/30">
+                    <DollarSign size={11} />価格設定
+                  </button>
+                )}
+                {result.summary.strengthsCount > 0 && (
+                  <button onClick={() => onNavigate("strengths")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-yellow-500/20 text-yellow-300 text-xs font-medium hover:bg-yellow-500/30 transition-colors border border-yellow-500/30">
+                    <Zap size={11} />強み
+                  </button>
+                )}
+                {result.summary.casesCount > 0 && (
+                  <button onClick={() => onNavigate("cases")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-medium hover:bg-purple-500/30 transition-colors border border-purple-500/30">
+                    <BookOpen size={11} />成功事例
+                  </button>
+                )}
+                {result.summary.competitorsCount > 0 && (
+                  <button onClick={() => onNavigate("competitors")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/20 text-red-300 text-xs font-medium hover:bg-red-500/30 transition-colors border border-red-500/30">
+                    <Shield size={11} />競合比較
+                  </button>
+                )}
+                {result.summary.phrasesCount > 0 && (
+                  <button onClick={() => onNavigate("copy")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-500/20 text-orange-300 text-xs font-medium hover:bg-orange-500/30 transition-colors border border-orange-500/30">
+                    <MessageSquare size={11} />フレーズ
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -404,7 +438,21 @@ function UploadTab({ config, onMerge }: { config: UMUConfig; onMerge: (extracted
               )}
             </button>
             {sampleLoaded && (
-              <p className="text-xs text-green-400 mt-2">各タブで内容を確認し「保存する」を押してください。</p>
+              <div className="mt-2 space-y-1.5">
+                <p className="text-xs text-green-400">読み込み完了。各タブで確認・編集できます：</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(["product", "pricing", "strengths", "cases", "copy", "competitors"] as TabId[]).map((tab) => {
+                    const info = TABS.find(t => t.id === tab);
+                    if (!info) return null;
+                    const Icon = info.icon;
+                    return (
+                      <button key={tab} onClick={() => onNavigate(tab)} className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-slate-700/50 text-slate-300 hover:bg-slate-700 transition-colors border border-slate-600/50`}>
+                        <Icon size={10} />{info.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -892,7 +940,7 @@ export default function UMUSettingsPanel({ onConfigChange, isOpen, onClose }: UM
 
           {/* Right content */}
           <div className="flex-1 overflow-y-auto p-6">
-            {activeTab === "upload" && <UploadTab config={config} onMerge={mergeConfig} />}
+            {activeTab === "upload" && <UploadTab config={config} onMerge={mergeConfig} onNavigate={setActiveTab} />}
             {activeTab === "product" && <ProductTab config={config} update={(p) => updateConfig({ product: { ...config.product, ...p } })} />}
             {activeTab === "pricing" && <PricingTab config={config} updatePricing={(p) => updateConfig({ pricing: { ...config.pricing, ...p } })} />}
             {activeTab === "strengths" && <StrengthsTab config={config} updateStrengths={(s) => updateConfig({ strengths: s })} />}

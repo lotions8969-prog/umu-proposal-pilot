@@ -6,7 +6,7 @@ import type { HearingData, ProposalPlan, PricingDetail } from "@/types";
 import type { UMUConfig } from "@/types/umuConfig";
 import { v4 as uuidv4 } from "uuid";
 
-// Increase Vercel function timeout
+export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const client = new Anthropic({

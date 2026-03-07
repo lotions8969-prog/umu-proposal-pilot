@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { v4 as uuidv4 } from "uuid";
+
+export const runtime = "nodejs";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -80,32 +83,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "テキストが短すぎます（10文字以上入力してください）" }, { status: 400 });
     }
 
-    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-    const mediaType = (allowedTypes.includes(imageMediaType ?? "") ? imageMediaType : "image/png") as
-      "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
+    type AllowedMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+    const mediaType: AllowedMediaType = (allowedTypes as readonly string[]).includes(imageMediaType ?? "")
+      ? (imageMediaType as AllowedMediaType)
+      : "image/png";
 
-    type UserContent =
-      | string
-      | Array<{ type: "image"; source: { type: "base64"; media_type: typeof mediaType; data: string } } | { type: "text"; text: string }>;
-
-    const userContent: UserContent = imageBase64
+    const messages: MessageParam[] = imageBase64
       ? [
           {
-            type: "image" as const,
-            source: { type: "base64" as const, media_type: mediaType, data: imageBase64 },
-          },
-          {
-            type: "text" as const,
-            text: "この画像からUMU製品情報を抽出してください。価格表・製品資料・機能説明・成功事例・スクリーンショットなど、どんな形式でも構いません。読み取れる情報をすべてJSON形式で返してください。",
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: { type: "base64", media_type: mediaType, data: imageBase64 },
+              },
+              {
+                type: "text",
+                text: "この画像からUMU製品情報を抽出してください。価格表・製品資料・機能説明・成功事例・スクリーンショットなど、どんな形式でも構いません。読み取れる情報をすべてJSON形式で返してください。",
+              },
+            ],
           },
         ]
-      : `以下のテキストからUMU製品情報を抽出してください。\n\n---\n${text}\n---`;
+      : [
+          {
+            role: "user",
+            content: `以下のテキストからUMU製品情報を抽出してください。\n\n---\n${text}\n---`,
+          },
+        ];
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 4000,
       system: EXTRACT_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userContent as Parameters<typeof client.messages.create>[0]["messages"][0]["content"] }],
+      messages,
     });
 
     const content = response.content[0];
