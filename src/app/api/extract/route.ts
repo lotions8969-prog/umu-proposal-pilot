@@ -63,22 +63,42 @@ planTypeは "Premium", "Standard", "Light" のいずれかです。
 
 export async function POST(request: NextRequest) {
   try {
-    const { text } = await request.json() as { text: string };
+    const body = await request.json() as {
+      text?: string;
+      imageBase64?: string;
+      imageMediaType?: string;
+    };
+    const { text, imageBase64, imageMediaType } = body;
 
-    if (!text || text.trim().length < 10) {
+    if (!text && !imageBase64) {
+      return NextResponse.json({ error: "テキストまたは画像が必要です" }, { status: 400 });
+    }
+    if (text && !imageBase64 && text.trim().length < 10) {
       return NextResponse.json({ error: "テキストが短すぎます" }, { status: 400 });
     }
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    const mediaType = (allowedTypes.includes(imageMediaType ?? "") ? imageMediaType : "image/png") as
+      "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
+    const userContent = imageBase64
+      ? [
+          {
+            type: "image" as const,
+            source: { type: "base64" as const, media_type: mediaType, data: imageBase64 },
+          },
+          {
+            type: "text" as const,
+            text: "この画像からUMU製品情報を抽出してください。価格表・製品資料・機能説明・成功事例・スクリーンショットなど、どんな形式でも構いません。読み取れる情報をすべてJSON形式で返してください。",
+          },
+        ]
+      : `以下のテキストからUMU製品情報を抽出してください。\n\n---\n${text}\n---`;
 
     const response = await client.messages.create({
       model: "claude-opus-4-6",
       max_tokens: 6000,
       system: EXTRACT_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `以下のテキストからUMU製品情報を抽出してください。\n\n---\n${text}\n---`,
-        },
-      ],
+      messages: [{ role: "user", content: userContent }],
     });
 
     const content = response.content[0];

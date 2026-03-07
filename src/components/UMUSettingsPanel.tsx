@@ -71,41 +71,68 @@ function CollapsibleItem({ title, subtitle, onDelete, children }: {
 
 /* ===== Upload & Extract Tab ===== */
 
+type ImageData = { base64: string; mediaType: string; preview: string; name: string };
+type ExtractSummary = { product: boolean; pricingFilled: boolean; strengthsCount: number; casesCount: number; competitorsCount: number; phrasesCount: number };
+type InputMode = "file" | "text";
+
 function UploadTab({ config, onMerge }: { config: UMUConfig; onMerge: (extracted: Partial<UMUConfig>) => void }) {
+  const [inputMode, setInputMode] = useState<InputMode>("file");
   const [text, setText] = useState("");
+  const [imageData, setImageData] = useState<ImageData | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
-  type ExtractSummary = { product: boolean; pricingFilled: boolean; strengthsCount: number; casesCount: number; competitorsCount: number; phrasesCount: number; };
   const [result, setResult] = useState<{ summary: ExtractSummary } | null>(null);
   const [error, setError] = useState("");
+  const [sampleLoaded, setSampleLoaded] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const processFile = (file: File) => {
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string;
+        const [header, base64] = dataUrl.split(",");
+        const mediaType = header.split(":")[1].split(";")[0];
+        setImageData({ base64, mediaType, preview: dataUrl, name: file.name });
+        setText("");
+        setResult(null);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setText(ev.target?.result as string);
+        setImageData(null);
+        setResult(null);
+      };
+      reader.readAsText(file, "utf-8");
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setText(ev.target?.result as string);
-    reader.readAsText(file, "utf-8");
+    if (file) processFile(file);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setText(ev.target?.result as string);
-    reader.readAsText(file, "utf-8");
+    if (file) processFile(file);
   };
 
   const handleExtract = async () => {
-    if (!text.trim()) return;
+    const hasContent = imageData || text.trim();
+    if (!hasContent) return;
     setIsExtracting(true);
     setError("");
     setResult(null);
     try {
+      const body = imageData
+        ? { imageBase64: imageData.base64, imageMediaType: imageData.mediaType }
+        : { text };
       const res = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "抽出に失敗しました"); return; }
@@ -118,6 +145,13 @@ function UploadTab({ config, onMerge }: { config: UMUConfig; onMerge: (extracted
     }
   };
 
+  const handleLoadSample = () => {
+    onMerge(SAMPLE_UMU_CONFIG);
+    setSampleLoaded(true);
+    setTimeout(() => setSampleLoaded(false), 3000);
+  };
+
+  const hasInput = !!(imageData || text.trim());
   const completeness = getConfigCompleteness(config);
   const filledCount = Object.values(completeness).filter(Boolean).length;
   const totalCount = Object.values(completeness).length;
@@ -158,51 +192,131 @@ function UploadTab({ config, onMerge }: { config: UMUConfig; onMerge: (extracted
         </div>
       </div>
 
-      {/* Step 1: Upload */}
+      {/* Step 1: Input */}
       <div>
         <div className="flex items-center gap-2 mb-3">
           <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">1</div>
-          <h3 className="text-sm font-bold text-white">製品資料を貼り付け or ファイルアップロード</h3>
-        </div>
-        <p className="text-xs text-slate-500 mb-3 ml-8">
-          価格表・製品資料・機能説明・成功事例など、どんな形式のテキストでも構いません。
-          PDFの場合はテキストをコピーして貼り付けてください。
-        </p>
-
-        {/* Drop zone */}
-        <div
-          onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-          onClick={() => !text && fileRef.current?.click()}
-          className={`relative border-2 border-dashed rounded-xl p-4 transition-all ${
-            text ? "border-blue-500/50 bg-blue-500/5" : "border-slate-700 hover:border-slate-600 cursor-pointer"
-          }`}
-        >
-          <input ref={fileRef} type="file" accept=".txt,.csv,.md,.text" className="hidden" onChange={handleFile} />
-          {!text && (
-            <div className="text-center py-4">
-              <Upload size={28} className="mx-auto mb-2 text-slate-600" />
-              <p className="text-sm text-slate-500">ここにファイルをドロップ</p>
-              <p className="text-xs text-slate-600 mt-1">または クリックしてファイルを選択（.txt, .csv, .md）</p>
-            </div>
-          )}
-          <textarea
-            className="w-full bg-transparent text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none resize-none"
-            rows={text ? 10 : 0}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            placeholder="ここに製品資料のテキストを貼り付けてください..."
-          />
-          {text && (
-            <div className="absolute top-2 right-2 flex gap-1">
-              <button onClick={(e) => { e.stopPropagation(); setText(""); }} className="px-2 py-1 rounded bg-slate-700 text-slate-400 text-xs hover:bg-slate-600">クリア</button>
-            </div>
-          )}
+          <h3 className="text-sm font-bold text-white">製品資料を入力</h3>
         </div>
 
-        {text && (
-          <p className="text-xs text-slate-600 mt-1">{text.length.toLocaleString()}文字 入力済み</p>
+        {/* Mode toggle */}
+        <div className="flex gap-2 mb-3 ml-8">
+          <button
+            type="button"
+            onClick={() => { setInputMode("file"); setText(""); setImageData(null); setResult(null); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+              inputMode === "file" ? "bg-blue-600 border-blue-500 text-white" : "border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-300"
+            }`}
+          >
+            <Upload size={12} />ファイル / 画像
+          </button>
+          <button
+            type="button"
+            onClick={() => { setInputMode("text"); setImageData(null); setResult(null); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+              inputMode === "text" ? "bg-blue-600 border-blue-500 text-white" : "border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-300"
+            }`}
+          >
+            <FileText size={12} />テキスト入力
+          </button>
+        </div>
+
+        {inputMode === "file" && (
+          <div>
+            <p className="text-xs text-slate-500 mb-3 ml-8">
+              スクリーンショット・画像・テキストファイルをアップロードできます。AIが内容を自動で読み取ります。
+            </p>
+            <div
+              onDrop={handleDrop}
+              onDragOver={(e) => e.preventDefault()}
+              onClick={() => !imageData && !text && fileRef.current?.click()}
+              className={`relative border-2 border-dashed rounded-xl p-4 transition-all ${
+                imageData || text ? "border-blue-500/50 bg-blue-500/5" : "border-slate-700 hover:border-blue-600/50 hover:bg-blue-600/5 cursor-pointer"
+              }`}
+            >
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".txt,.csv,.md,.text,image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              {!imageData && !text && (
+                <div className="text-center py-6">
+                  <div className="flex justify-center gap-3 mb-3">
+                    <Upload size={24} className="text-slate-600" />
+                  </div>
+                  <p className="text-sm text-slate-400 font-medium">ここにファイルをドロップ</p>
+                  <p className="text-xs text-slate-600 mt-1">または クリックしてファイルを選択</p>
+                  <div className="flex justify-center gap-2 mt-3">
+                    <span className="text-xs bg-slate-800 text-slate-500 px-2 py-0.5 rounded">PNG</span>
+                    <span className="text-xs bg-slate-800 text-slate-500 px-2 py-0.5 rounded">JPG</span>
+                    <span className="text-xs bg-slate-800 text-slate-500 px-2 py-0.5 rounded">WebP</span>
+                    <span className="text-xs bg-slate-800 text-slate-500 px-2 py-0.5 rounded">TXT</span>
+                    <span className="text-xs bg-slate-800 text-slate-500 px-2 py-0.5 rounded">CSV</span>
+                  </div>
+                </div>
+              )}
+              {imageData && (
+                <div>
+                  <img src={imageData.preview} alt={imageData.name} className="max-h-48 mx-auto rounded-lg object-contain" />
+                  <p className="text-xs text-slate-400 text-center mt-2">{imageData.name}</p>
+                </div>
+              )}
+              {text && !imageData && (
+                <textarea
+                  className="w-full bg-transparent text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none resize-none"
+                  rows={8}
+                  value={text}
+                  readOnly
+                />
+              )}
+              {(imageData || text) && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setImageData(null); setText(""); setResult(null); if (fileRef.current) fileRef.current.value = ""; }}
+                  className="absolute top-2 right-2 px-2 py-1 rounded bg-slate-700 text-slate-400 text-xs hover:bg-slate-600"
+                >
+                  クリア
+                </button>
+              )}
+            </div>
+            {imageData && (
+              <p className="text-xs text-slate-600 mt-1">画像ファイル — AIが内容を読み取ります</p>
+            )}
+            {text && !imageData && (
+              <p className="text-xs text-slate-600 mt-1">{text.length.toLocaleString()}文字 入力済み</p>
+            )}
+          </div>
+        )}
+
+        {inputMode === "text" && (
+          <div>
+            <p className="text-xs text-slate-500 mb-3 ml-8">
+              価格表・製品資料・機能説明・成功事例など、テキストを直接貼り付けてください。
+            </p>
+            <div className="relative border border-slate-700 rounded-xl p-3 bg-slate-800/30 focus-within:border-blue-500/50 transition-colors">
+              <textarea
+                className="w-full bg-transparent text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none resize-none"
+                rows={10}
+                value={text}
+                onChange={(e) => { setText(e.target.value); setResult(null); }}
+                placeholder="ここに製品資料のテキストを貼り付けてください...&#10;&#10;例：&#10;■ 価格表&#10;Premium: ¥6,800/ID/月&#10;&#10;■ 製品の強み&#10;・AIリアルタイムフィードバック..."
+              />
+              {text && (
+                <button
+                  type="button"
+                  onClick={() => { setText(""); setResult(null); }}
+                  className="absolute top-2 right-2 px-2 py-1 rounded bg-slate-700 text-slate-400 text-xs hover:bg-slate-600"
+                >
+                  クリア
+                </button>
+              )}
+            </div>
+            {text && (
+              <p className="text-xs text-slate-600 mt-1">{text.length.toLocaleString()}文字 入力済み</p>
+            )}
+          </div>
         )}
       </div>
 
@@ -213,15 +327,15 @@ function UploadTab({ config, onMerge }: { config: UMUConfig; onMerge: (extracted
           <h3 className="text-sm font-bold text-white">AIで自動抽出</h3>
         </div>
         <p className="text-xs text-slate-500 mb-3 ml-8">
-          ボタンを押すと、AIがテキストから価格・強み・事例・フレーズを自動で読み取ります。
+          ボタンを押すと、AIが{inputMode === "file" && imageData ? "画像" : "テキスト"}から価格・強み・事例・フレーズを自動で読み取ります。
         </p>
 
         <button
           onClick={handleExtract}
-          disabled={!text.trim() || isExtracting}
+          disabled={!hasInput || isExtracting}
           className={`w-full py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-            text.trim() && !isExtracting
-              ? "bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white shadow-lg"
+            hasInput && !isExtracting
+              ? "bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white shadow-lg cursor-pointer"
               : "bg-slate-800 text-slate-500 cursor-not-allowed"
           }`}
         >
@@ -275,12 +389,23 @@ function UploadTab({ config, onMerge }: { config: UMUConfig; onMerge: (extracted
               実際のデータに合わせて後から編集してください。
             </p>
             <button
-              onClick={() => onMerge(SAMPLE_UMU_CONFIG)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/20 border border-blue-500/30 text-blue-300 text-sm font-semibold hover:bg-blue-500/30 transition-all"
+              type="button"
+              onClick={handleLoadSample}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all border ${
+                sampleLoaded
+                  ? "bg-green-600/30 border-green-500/50 text-green-300"
+                  : "bg-blue-600 border-blue-500 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/30 cursor-pointer"
+              }`}
             >
-              <ArrowRight size={14} />
-              サンプルデータを読み込む
+              {sampleLoaded ? (
+                <><CheckCircle2 size={14} />読み込み完了！</>
+              ) : (
+                <><ArrowRight size={14} />サンプルデータを読み込む</>
+              )}
             </button>
+            {sampleLoaded && (
+              <p className="text-xs text-green-400 mt-2">各タブで内容を確認し「保存する」を押してください。</p>
+            )}
           </div>
         </div>
       </div>
