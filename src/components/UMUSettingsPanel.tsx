@@ -73,6 +73,7 @@ function CollapsibleItem({ title, subtitle, onDelete, children }: {
 
 type ImageData = { base64: string; mediaType: string; preview: string; name: string };
 type ExtractSummary = { product: boolean; pricingFilled: boolean; strengthsCount: number; casesCount: number; competitorsCount: number; phrasesCount: number };
+type ExtractResult = { summary: ExtractSummary; aiUsed?: boolean };
 type InputMode = "file" | "text";
 
 function UploadTab({ config, onMerge, onNavigate }: { config: UMUConfig; onMerge: (extracted: Partial<UMUConfig>) => void; onNavigate: (tab: TabId) => void }) {
@@ -80,7 +81,7 @@ function UploadTab({ config, onMerge, onNavigate }: { config: UMUConfig; onMerge
   const [text, setText] = useState("");
   const [imageData, setImageData] = useState<ImageData | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
-  const [result, setResult] = useState<{ summary: ExtractSummary } | null>(null);
+  const [result, setResult] = useState<ExtractResult | null>(null);
   const [error, setError] = useState("");
   const [sampleLoaded, setSampleLoaded] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -356,7 +357,12 @@ function UploadTab({ config, onMerge, onNavigate }: { config: UMUConfig; onMerge
           <div className="mt-3 p-4 rounded-xl bg-green-950/30 border border-green-800/50 space-y-3">
             <div className="flex items-center gap-2">
               <CheckCircle2 size={14} className="text-green-400" />
-              <span className="text-sm font-bold text-green-300">抽出完了！以下の情報が取り込まれました</span>
+              <span className="text-sm font-bold text-green-300">
+                {result.aiUsed ? "AI抽出完了！" : "テキスト解析完了！"}以下の情報が取り込まれました
+              </span>
+              {!result.aiUsed && (
+                <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full border border-yellow-500/30">ルールベース解析</span>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-1.5 text-xs">
               {result.summary.product && <div className="flex items-center gap-1.5 text-green-300"><Check size={11} />製品情報</div>}
