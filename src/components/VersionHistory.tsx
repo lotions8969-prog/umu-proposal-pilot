@@ -45,7 +45,7 @@ export default function VersionHistory({ onRestore, currentId }: VersionHistoryP
         <span>履歴</span>
         {versions.length > 0 && (
           <span className="bg-blue-500/30 text-blue-300 px-1.5 py-0.5 rounded-full text-xs">
-            {getVersions().length}
+            {versions.length}
           </span>
         )}
       </button>

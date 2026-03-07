@@ -98,6 +98,15 @@ body {
   @apply bg-slate-900/60 border border-slate-800 rounded-xl;
 }
 
+/* Fade-in animation */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out both;
+}
+
 /* Glow effects */
 .glow-blue {
   box-shadow: 0 0 30px rgba(0, 87, 255, 0.3);

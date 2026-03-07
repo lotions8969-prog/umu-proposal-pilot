@@ -13,7 +13,11 @@ export default function BeforeAfterVisualizer({ before, after, planColor }: Befo
   return (
     <div className="space-y-3">
       <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-        <div className={`w-2 h-2 rounded-full bg-${planColor}-400`} />
+        <div className={`w-2 h-2 rounded-full ${{
+          purple: "bg-purple-400",
+          blue: "bg-blue-400",
+          green: "bg-green-400",
+        }[planColor] ?? "bg-blue-400"}`} />
         Before / After 比較
       </h3>
 

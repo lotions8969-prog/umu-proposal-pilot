@@ -108,9 +108,14 @@ export default function PricingTable({ pricing, planColor, umuConfig, onUpdate }
             <Tag size={12} className="text-yellow-400" />
             <span className="text-xs text-yellow-300 font-semibold">
               合計 {Math.round(displayPricing.totalDiscountRate * 100)}% OFF 適用中
-              {displayPricing.volumeDiscountRate > 0 && ` (ボリューム ${Math.round(displayPricing.volumeDiscountRate * 100)}%`}
-              {displayPricing.contractDiscountRate > 0 && ` + 長期 ${Math.round(displayPricing.contractDiscountRate * 100)}%)`}
-              {displayPricing.volumeDiscountRate > 0 && displayPricing.contractDiscountRate === 0 && ")"}
+              {(() => {
+                const v = displayPricing.volumeDiscountRate > 0;
+                const c = displayPricing.contractDiscountRate > 0;
+                if (v && c) return ` (ボリューム ${Math.round(displayPricing.volumeDiscountRate * 100)}% + 長期 ${Math.round(displayPricing.contractDiscountRate * 100)}%)`;
+                if (v) return ` (ボリューム ${Math.round(displayPricing.volumeDiscountRate * 100)}%)`;
+                if (c) return ` (長期 ${Math.round(displayPricing.contractDiscountRate * 100)}%)`;
+                return "";
+              })()}
             </span>
           </div>
         )}

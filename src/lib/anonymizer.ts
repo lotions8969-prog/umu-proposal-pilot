@@ -9,10 +9,13 @@ export function anonymizeHearingData(data: HearingData): HearingData {
   // Use per-call local state to prevent cross-request data leaks in serverless environments
   const companyAlias = "A社";
 
+  // Escape special regex characters to safely use company name in RegExp
+  const escapedCompanyName = data.companyName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
   // Replace company name in all text fields
   function replaceCompany(text: string): string {
-    if (!text) return text;
-    return text.replace(new RegExp(data.companyName, "g"), companyAlias);
+    if (!text || !escapedCompanyName) return text;
+    return text.replace(new RegExp(escapedCompanyName, "g"), companyAlias);
   }
 
   // Replace person names (simple heuristic: Japanese names are often 2-4 chars)

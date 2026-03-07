@@ -59,7 +59,11 @@ export default function ROICalculator({ roi, planColor }: ROICalculatorProps) {
       </div>
 
       {/* 3-year ROI highlight */}
-      <div className={`relative overflow-hidden rounded-xl p-4 border border-${planColor}-500/30 bg-${planColor}-500/10`}>
+      <div className={`relative overflow-hidden rounded-xl p-4 border ${{
+        purple: "border-purple-500/30 bg-purple-500/10",
+        blue: "border-blue-500/30 bg-blue-500/10",
+        green: "border-green-500/30 bg-green-500/10",
+      }[planColor] ?? "border-blue-500/30 bg-blue-500/10"}`}>
         <div className="relative z-10">
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold text-slate-200">3年間累積ROI</span>
