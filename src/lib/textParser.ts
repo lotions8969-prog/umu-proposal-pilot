@@ -142,8 +142,10 @@ export function parseTextToConfig(text: string): ExtractedData {
   const prices = [premiumPrice, standardPrice, lightPrice];
   const allPrices: number[] = [];
   priceLines.forEach((l) => {
+    // Require a currency indicator to avoid false positives like "92%"
+    if (!/[円¥￥]|\/ID|\/月/.test(l)) return;
     const val = parseYen(l);
-    if (val > 0 && val < 1_000_000) allPrices.push(val);
+    if (val > 100 && val < 1_000_000) allPrices.push(val);
   });
   const uniquePrices = Array.from(new Set(allPrices)).sort((a, b) => b - a);
 
