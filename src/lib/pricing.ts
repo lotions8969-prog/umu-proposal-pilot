@@ -81,6 +81,8 @@ export const PRICING_CONFIG = {
 
 export function calculatePricing(input: PricingCalculationInput): PricingCalculationResult {
   const { planType, idCount, contractMonths, selectedOptions } = input;
+  const safeIDCount = Math.max(1, idCount || 1);
+  const safeMonths = Math.max(1, contractMonths || 12);
 
   const baseUnitPrice = PRICING_CONFIG.baseUnitPrice[planType];
   const initialFee = PRICING_CONFIG.initialFee[planType];
@@ -88,7 +90,7 @@ export function calculatePricing(input: PricingCalculationInput): PricingCalcula
   // Volume discount
   let volumeDiscountRate = 0;
   for (const tier of PRICING_CONFIG.volumeDiscounts) {
-    if (idCount >= tier.minIDs) {
+    if (safeIDCount >= tier.minIDs) {
       volumeDiscountRate = tier.rate;
       break;
     }
@@ -97,7 +99,7 @@ export function calculatePricing(input: PricingCalculationInput): PricingCalcula
   // Contract length discount
   let contractDiscountRate = 0;
   for (const tier of PRICING_CONFIG.contractDiscounts) {
-    if (contractMonths >= tier.months) {
+    if (safeMonths >= tier.months) {
       contractDiscountRate = tier.rate;
       break;
     }
@@ -111,7 +113,7 @@ export function calculatePricing(input: PricingCalculationInput): PricingCalcula
   const discountedUnitPrice = Math.round(baseUnitPrice * (1 - totalDiscountRate));
 
   // Monthly base cost
-  const monthlyBase = discountedUnitPrice * idCount;
+  const monthlyBase = discountedUnitPrice * safeIDCount;
 
   // Options costs
   let optionsMonthlyCost = 0;
@@ -120,7 +122,7 @@ export function calculatePricing(input: PricingCalculationInput): PricingCalcula
     const option = PRICING_CONFIG.options[optionKey];
     if (!option) continue;
     if (option.pricePerID > 0) {
-      optionsMonthlyCost += option.pricePerID * idCount;
+      optionsMonthlyCost += option.pricePerID * safeIDCount;
     }
     if (option.flatPrice > 0) {
       optionsFlatCost += option.flatPrice;
@@ -129,7 +131,7 @@ export function calculatePricing(input: PricingCalculationInput): PricingCalcula
 
   const monthlyTotal = monthlyBase + optionsMonthlyCost;
   const annualTotal = monthlyTotal * 12 + initialFee + optionsFlatCost;
-  const totalContractValue = monthlyTotal * contractMonths + initialFee + optionsFlatCost;
+  const totalContractValue = monthlyTotal * safeMonths + initialFee + optionsFlatCost;
 
   return {
     baseUnitPrice,
@@ -162,35 +164,38 @@ export function calculatePricingWithConfig(
   selectedOptions: string[],
   configMap: ConfigPricingMap
 ): PricingCalculationResult {
+  const safeIDCount = Math.max(1, idCount || 1);
+  const safeMonths = Math.max(1, contractMonths || 12);
+
   const baseUnitPrice = configMap.baseUnitPrice[planType] || PRICING_CONFIG.baseUnitPrice[planType];
   const initialFee = configMap.initialFee[planType] || PRICING_CONFIG.initialFee[planType];
 
   let volumeDiscountRate = 0;
   for (const tier of configMap.volumeDiscounts) {
-    if (idCount >= tier.minIDs) { volumeDiscountRate = tier.rate; break; }
+    if (safeIDCount >= tier.minIDs) { volumeDiscountRate = tier.rate; break; }
   }
 
   let contractDiscountRate = 0;
   for (const tier of configMap.contractDiscounts) {
-    if (contractMonths >= tier.months) { contractDiscountRate = tier.rate; break; }
+    if (safeMonths >= tier.months) { contractDiscountRate = tier.rate; break; }
   }
 
   const totalDiscountRate = Math.min(volumeDiscountRate + contractDiscountRate, configMap.maxTotalDiscount);
   const discountedUnitPrice = Math.round(baseUnitPrice * (1 - totalDiscountRate));
-  const monthlyBase = discountedUnitPrice * idCount;
+  const monthlyBase = discountedUnitPrice * safeIDCount;
 
   let optionsMonthlyCost = 0;
   let optionsFlatCost = 0;
   for (const optId of selectedOptions) {
     const opt = configMap.options[optId];
     if (!opt) continue;
-    if (opt.pricePerID > 0) optionsMonthlyCost += opt.pricePerID * idCount;
+    if (opt.pricePerID > 0) optionsMonthlyCost += opt.pricePerID * safeIDCount;
     if (opt.flatPrice > 0) optionsFlatCost += opt.flatPrice;
   }
 
   const monthlyTotal = monthlyBase + optionsMonthlyCost;
   const annualTotal = monthlyTotal * 12 + initialFee + optionsFlatCost;
-  const totalContractValue = monthlyTotal * contractMonths + initialFee + optionsFlatCost;
+  const totalContractValue = monthlyTotal * safeMonths + initialFee + optionsFlatCost;
 
   return {
     baseUnitPrice, discountedUnitPrice, volumeDiscountRate, contractDiscountRate,

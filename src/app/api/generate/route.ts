@@ -175,7 +175,7 @@ ${JSON.stringify({ plans: currentProposal.plans.map((p) => ({ ...p, pricing: und
     }
 
     const parsed = JSON.parse(jsonMatch[1]);
-    const plans: ProposalPlan[] = parsed.plans;
+    const plans: ProposalPlan[] = parsed?.plans;
 
     if (!Array.isArray(plans) || plans.length === 0) {
       return NextResponse.json({ error: "提案書の構造が正しくありません。再度お試しください。" }, { status: 500 });
@@ -211,8 +211,10 @@ ${JSON.stringify({ plans: currentProposal.plans.map((p) => ({ ...p, pricing: und
     return NextResponse.json({ proposal });
   } catch (error) {
     console.error("Generation error:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    const isAuthError = message.includes("401") || message.includes("authentication") || message.includes("api-key") || message.includes("x-api-key");
     return NextResponse.json(
-      { error: "提案書の生成中にエラーが発生しました。APIキーを確認してください。" },
+      { error: isAuthError ? "APIキーが無効です。Vercelの環境変数 ANTHROPIC_API_KEY を確認してください。" : `提案書の生成中にエラーが発生しました: ${message}` },
       { status: 500 }
     );
   }

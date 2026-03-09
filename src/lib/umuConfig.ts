@@ -229,9 +229,9 @@ export function buildSystemPromptFromConfig(config: UMUConfig): string {
 
   const pricingText = config.pricing.plans.premium.unitPrice > 0
     ? [
-        `Premium: ¥${config.pricing.plans.premium.unitPrice.toLocaleString()}/ID/月、初期費用¥${config.pricing.plans.premium.initialFee.toLocaleString()}`,
-        `Standard: ¥${config.pricing.plans.standard.unitPrice.toLocaleString()}/ID/月、初期費用¥${config.pricing.plans.standard.initialFee.toLocaleString()}`,
-        `Light: ¥${config.pricing.plans.light.unitPrice.toLocaleString()}/ID/月、初期費用¥${config.pricing.plans.light.initialFee.toLocaleString()}`,
+        `Premium: ${config.pricing.plans.premium.unitPrice}円/ID/月、初期費用${config.pricing.plans.premium.initialFee}円`,
+        `Standard: ${config.pricing.plans.standard.unitPrice}円/ID/月、初期費用${config.pricing.plans.standard.initialFee}円`,
+        `Light: ${config.pricing.plans.light.unitPrice}円/ID/月、初期費用${config.pricing.plans.light.initialFee}円`,
       ].join("\n")
     : "（価格が未設定です）";
 

@@ -92,10 +92,10 @@ export default function ROICalculator({ roi, planColor }: ROICalculatorProps) {
           <div className="flex-1 bg-slate-800 rounded-full h-2">
             <div
               className="h-2 rounded-full bg-gradient-to-r from-yellow-500 to-green-500 transition-all"
-              style={{ width: `${Math.min((roi.threeYearROIPercent / 3) * 1.5, 100)}%` }}
+              style={{ width: `${Math.min((roi.threeYearROIPercent / 3) * 2, 100)}%` }}
             />
           </div>
-          <span className="text-xs text-slate-400 w-12">{Math.round((roi.threeYearROIPercent / 3) * 1.5)}%</span>
+          <span className="text-xs text-slate-400 w-12">{Math.round((roi.threeYearROIPercent / 3) * 2)}%</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-500 w-16 text-right">Year 3</span>

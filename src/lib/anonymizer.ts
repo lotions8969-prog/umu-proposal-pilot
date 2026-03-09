@@ -15,7 +15,7 @@ export function anonymizeHearingData(data: HearingData): HearingData {
   // Replace company name in all text fields
   function replaceCompany(text: string): string {
     if (!text || !escapedCompanyName) return text;
-    return text.replace(new RegExp(escapedCompanyName, "g"), companyAlias);
+    return text.replace(new RegExp(escapedCompanyName, "gi"), companyAlias);
   }
 
   // Replace person names (simple heuristic: Japanese names are often 2-4 chars)

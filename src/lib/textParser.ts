@@ -49,7 +49,8 @@ function extractSection(lines: string[], headingPatterns: RegExp[]): string[] {
     const isHeading = headingPatterns.some((p) => p.test(line));
     if (isHeading) { inSection = true; continue; }
     // Next heading ends the section
-    if (inSection && /^[\u4e00-\u9faf\u3040-\u309f\u30a0-\u30ff]{2,}[:：]/.test(line) && !line.startsWith("・") && !line.startsWith("●")) {
+    const trimmed = line.trim();
+    if (inSection && /^[\u4e00-\u9faf\u3040-\u309f\u30a0-\u30ff]{2,}[:：]/.test(trimmed) && !trimmed.startsWith("・") && !trimmed.startsWith("●")) {
       inSection = false;
     }
     if (inSection && line.length > 2) result.push(line);
